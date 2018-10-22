@@ -2,28 +2,23 @@ module Bullet
   module ActiveRecord
     def self.enable
       require 'active_record'
-      ::ActiveRecord::Base.class_eval do
-        class << self
-          alias_method :origin_find_every, :find_every
-          # if select a collection of objects, then these objects have possible to cause N+1 query.
-          # if select only one object, then the only one object has impossible to cause N+1 query.
-          def find_every(options)
-            records = origin_find_every(options)
+      ::ActiveRecord::Base.extend(Module.new {
+        def find_every(options)
+          records = super
 
-            if records
-              if records.size > 1
-                Bullet::Detector::NPlusOneQuery.add_possible_objects(records)
-                Bullet::Detector::CounterCache.add_possible_objects(records)
-              elsif records.size == 1
-                Bullet::Detector::NPlusOneQuery.add_impossible_object(records.first)
-                Bullet::Detector::CounterCache.add_impossible_object(records.first)
-              end
+          if records
+            if records.size > 1
+              Bullet::Detector::NPlusOneQuery.add_possible_objects(records)
+              Bullet::Detector::CounterCache.add_possible_objects(records)
+            elsif records.size == 1
+              Bullet::Detector::NPlusOneQuery.add_impossible_object(records.first)
+              Bullet::Detector::CounterCache.add_impossible_object(records.first)
             end
-
-            records
           end
+
+          records
         end
-      end
+      })
 
       ::ActiveRecord::AssociationPreload::ClassMethods.class_eval do
         alias_method :origin_preload_associations, :preload_associations
